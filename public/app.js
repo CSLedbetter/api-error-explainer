@@ -108,7 +108,18 @@ $('clear').addEventListener('click', () => {
   $('input').focus();
 });
 
-$('explain').addEventListener('click', async () => {
+// The same text and ticket always map to the same saved diagnosis.
+const runKey = () => window.RunCache.key({ tool: 'api', input: $('input').value, ticket: state.ticket?.id || null });
+let running = false;
+
+$('explain').addEventListener('click', () => explain(false));
+
+async function explain(fresh) {
+  if (running) return;
+  const k = await runKey();
+  const saved = !fresh && window.RunCache.get(k);
+  if (saved) return render(saved.data, saved);
+  running = true;
   const out = $('result');
   out.hidden = false;
   out.className = 'panel result loading';
@@ -123,6 +134,8 @@ $('explain').addEventListener('click', async () => {
     });
     const body = await res.json().catch(() => ({ error: 'The server sent back something unexpected.' }));
     if (!res.ok) throw new Error(body.error || `Request failed (${res.status}).`);
+    body.source = t ? `ticket ${t.id}` : 'your input';
+    window.RunCache.put(k, body);
     render(body);
     window.DemoAuth.afterCall(body.remaining_usd);
   } catch (err) {
@@ -132,16 +145,28 @@ $('explain').addEventListener('click', async () => {
     p.textContent = err.message;
     out.replaceChildren(p);
   } finally {
+    running = false;
     updateButton();
   }
-});
+}
 
-function render(data) {
+function savedBanner(saved) {
+  const box = Object.assign(document.createElement('div'), { className: 'saved-note' });
+  const again = Object.assign(document.createElement('button'), { type: 'button', className: 'link', textContent: 'Run a fresh diagnosis' });
+  again.disabled = !window.DemoAuth?.approved;
+  again.addEventListener('click', () => explain(true));
+  box.append(Object.assign(document.createElement('span'), { textContent: `Saved diagnosis from ${window.RunCache.time(saved.savedAt)} for this exact input. No new Claude call, no cost. ` }), again);
+  return box;
+}
+
+function render(data, saved) {
   state.last = data;
   const r = data.result;
   const out = $('result');
+  out.hidden = false;
   out.className = 'panel result';
   out.replaceChildren($('tpl-result').content.cloneNode(true));
+  if (saved) out.prepend(savedBanner(saved));
   const f = (name) => out.querySelector(`[data-f="${name}"]`);
   const list = (el, items) => el.replaceChildren(...items.map((x) => Object.assign(document.createElement('li'), { textContent: x })));
 
@@ -180,7 +205,8 @@ function render(data) {
   f('admin').textContent = r.admin_reply;
   f('exec').textContent = r.exec_summary;
   if (r.escalate_to_engineering) { f('escalate').hidden = false; f('escalation').textContent = r.escalation_note; }
-  f('meta').textContent = `Generated live just now from ${state.ticket ? `ticket ${state.ticket.id}` : 'your input'} by ${data.model} in ${data.seconds} s · Claude request ID ${data.claude_request_id || 'not returned'} · this run cost $${data.cost_usd.toFixed(4)}`;
+  const when = saved ? `Generated live at ${window.RunCache.time(saved.savedAt)}` : 'Generated live just now';
+  f('meta').textContent = `${when} from ${data.source || 'your input'} by ${data.model} in ${data.seconds} s · Claude request ID ${data.claude_request_id || 'not returned'} · ${saved ? 'that run' : 'this run'} cost $${data.cost_usd.toFixed(4)}`;
 
   out.querySelectorAll('.copy').forEach((b) => b.addEventListener('click', async () => {
     const text = b.dataset.copy === 'admin' ? r.admin_reply : r.exec_summary;

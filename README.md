@@ -37,6 +37,10 @@ update public.demo_settings set enabled = false;        -- kill switch for both 
 
 The schema is in `supabase/migrations/`.
 
+## Saved diagnoses
+
+Each paid diagnosis is saved in the visitor's browser tab, keyed by a SHA-256 hash of the exact input (plus the ticket, and the SP settings in SSO Assistant). Clicking the paid button again on the same input shows the saved result with its original time and Claude request ID, and makes no new call. A **Run a fresh diagnosis** link forces a new one. Saved results live in `sessionStorage`, so they survive a reload, clear when the tab closes or the visitor signs out, and never include the pasted text itself.
+
 ## Run it locally
 
 ```

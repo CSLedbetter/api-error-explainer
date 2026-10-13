@@ -51,7 +51,7 @@ Server-side only, set in Vercel. See `.env.example`.
 
 - `ADMIN_EMAIL`: the only signed-in email that can open `/admin`.
 - `ANTHROPIC_API_KEY`: a dedicated key for this demo, ideally in its own Console workspace with a spend limit as a backstop.
-- `SUPABASE_URL` and `SUPABASE_SECRET_KEY`: the project that holds the codes and the cap.
+- `SUPABASE_URL` and `SUPABASE_SECRET_KEY`: the project that holds sign-ins, approvals and the cap.
 - `CLAUDE_MODEL` (optional): defaults to `claude-sonnet-5-5`, about $0.01 to $0.03 per explanation.
 
 A daily Vercel cron calls `/api/ping` so the free Supabase project doesn't pause before a live demo.

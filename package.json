@@ -1,0 +1,11 @@
+{
+  "name": "api-error-explainer",
+  "private": true,
+  "type": "module",
+  "description": "Paste a failed Claude API request and get a diagnosis, doc links, and two ready replies.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "dev": "vercel dev"
+  }
+}

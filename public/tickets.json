@@ -1,0 +1,74 @@
+[
+  {
+    "id": "API-2001",
+    "received_at": "2026-10-06T14:02Z",
+    "from_name": "Priya Raman",
+    "company": "Northwind Analytics",
+    "plan": "API (Tier 3)",
+    "subject": "529 overloaded a few times an hour",
+    "body": "We get these a few times an hour in production. Is this on our side? Should our job runner retry?\n\nHTTP/1.1 529\nrequest-id: req_011CTQx9fmN3mDdW7VbK2a1e\n{\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"},\"request_id\":\"req_011CTQx9fmN3mDdW7VbK2a1e\"}"
+  },
+  {
+    "id": "API-2002",
+    "received_at": "2026-10-06T16:40Z",
+    "from_name": "Marco Bellini",
+    "company": "Ledgerline",
+    "plan": "API (Tier 2)",
+    "subject": "429s at peak, about 10% of requests",
+    "body": "At our 9am peak about 10% of calls fail. Headers from one of them:\n\nHTTP/1.1 429 Too Many Requests\nretry-after: 12\nanthropic-ratelimit-input-tokens-limit: 450000\nanthropic-ratelimit-input-tokens-remaining: 0\nanthropic-ratelimit-input-tokens-reset: 2026-10-06T16:40:31Z\nanthropic-ratelimit-requests-remaining: 812\nrequest-id: req_011CTR2kq8LxP4sVn6tYw3Bz\n{\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"This request would exceed your organization's rate limit of 450,000 input tokens per minute.\"},\"request_id\":\"req_011CTR2kq8LxP4sVn6tYw3Bz\"}\n\nWe send the same 30k-token system prompt on every call."
+  },
+  {
+    "id": "API-2003",
+    "received_at": "2026-10-07T09:15Z",
+    "from_name": "Hannah Okafor",
+    "company": "Brightpath Health",
+    "plan": "API (Tier 1)",
+    "subject": "Everything returns 429 and retries never work",
+    "body": "Since this morning every single request fails. Our SDK retries for minutes and nothing gets through.\n\n{\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"You have reached your API usage limits: your organization has crossed its monthly API usage threshold, set based on your organization's API tier. You will regain access on 2026-11-01 at 00:00 UTC.\",\"details\":{\"error_code\":\"enforced_spend_limit_reached\"}},\"request_id\":\"req_011CTS7bNwq2Vx8RfJ1mPz4K\"}\n\nThere's no retry-after header on these."
+  },
+  {
+    "id": "API-2004",
+    "received_at": "2026-10-07T11:48Z",
+    "from_name": "Owen Hughes",
+    "company": "Tallyfold",
+    "plan": "API",
+    "subject": "Bought credits, still says balance too low",
+    "body": "We bought $50 in credits 20 minutes ago and still get this:\n\nHTTP 400\n{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_id\":\"req_011CTS9dJr4Hk2Wm8QxL6nTe\"}\n\nWe have two workspaces, Default and Prod. The key is from Prod."
+  },
+  {
+    "id": "API-2005",
+    "received_at": "2026-10-08T08:21Z",
+    "from_name": "Lena Fischer",
+    "company": "(individual)",
+    "plan": "Max 5x",
+    "subject": "Claude Code says invalid API key",
+    "body": "I log in with my Max account but Claude Code says:\n\nAPI Error: 401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"invalid x-api-key\"},\"request_id\":\"req_011CTT4mHq7Bc9Vx2NsR8wLd\"}\n\nI did set an API key months ago for a side project. Not sure if that matters."
+  },
+  {
+    "id": "API-2006",
+    "received_at": "2026-10-08T13:05Z",
+    "from_name": "Sam Whitaker",
+    "company": "Casefile Legal",
+    "plan": "API (Tier 4)",
+    "subject": "413 when we send big contracts",
+    "body": "Uploading a few large PDFs as base64 in one message fails with:\n\nHTTP/1.1 413\n{\"type\":\"error\",\"error\":{\"type\":\"request_too_large\",\"message\":\"Request exceeds the maximum allowed number of bytes.\"},\"request_id\":\"req_011CTU1xVb6Nq3Pz8KdW2rYm\"}"
+  },
+  {
+    "id": "API-2007",
+    "received_at": "2026-10-09T10:30Z",
+    "from_name": "Aiko Tanaka",
+    "company": "Kitewise",
+    "plan": "API (Tier 2)",
+    "subject": "Long reports time out",
+    "body": "Our nightly report job asks for very long outputs without streaming. Some calls die after several minutes:\n\nHTTP/1.1 504\n{\"type\":\"error\",\"error\":{\"type\":\"timeout_error\",\"message\":\"Request timed out\"},\"request_id\":\"req_011CTV8rKp3Wm6Qz1YxN4bHs\"}"
+  },
+  {
+    "id": "API-2008",
+    "received_at": "2026-10-09T15:12Z",
+    "from_name": "Dev Patel",
+    "company": "Stackmint",
+    "plan": "API (Tier 2)",
+    "subject": "Workspace key gets 403",
+    "body": "New key for our Staging workspace. Same code works with the old Default key.\n\nHTTP/1.1 403\n{\"type\":\"error\",\"error\":{\"type\":\"permission_error\",\"message\":\"Your API key does not have permission to use the specified resource.\"},\"request_id\":\"req_011CTW2bGt8Nc4Rx7MvP1kQa\"}"
+  }
+]

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Error Explainer</title>
+<meta name="description" content="Paste a failed Claude API request or a customer ticket and get a diagnosis, the right doc links, and two ready replies: one for the admin, one for an executive.">
+<link rel="canonical" href="https://api-error-explainer.caseyledbetter.com/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://api-error-explainer.caseyledbetter.com/">
+<meta property="og:title" content="API Error Explainer">
+<meta property="og:description" content="Paste a failed Claude API request and get a diagnosis, doc links, and replies for the admin and the executive.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/style.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <p class="eyebrow">Support tooling demo</p>
+    <h1>API Error Explainer</h1>
+    <p class="lede">Paste a failed Claude API request, some log lines, or a customer’s ticket. It pulls out the hard facts with code, then Claude explains what went wrong, links the right docs, and drafts two replies: one for the customer’s admin and one for an executive.</p>
+    <nav class="family" aria-label="Related tools">
+      <a href="https://doc-gap-finder.caseyledbetter.com">Doc Gap Finder</a>
+      <span aria-current="page">API Error Explainer</span>
+      <a href="https://sso-assistant.caseyledbetter.com">SSO Assistant</a>
+    </nav>
+  </header>
+
+  <section class="panel access" id="access" aria-live="polite">
+    <form id="code-form" class="code-form">
+      <label for="code">Access code</label>
+      <input id="code" name="code" autocomplete="off" spellcheck="false" placeholder="xxxx-xxxx-xxxx-xxxx" inputmode="text" maxlength="19" required>
+      <button type="submit">Unlock</button>
+      <p class="hint">Live calls to Claude need a code so the demo can’t be run up by strangers. Ask <a href="https://caseyledbetter.com">Casey</a> for one.</p>
+    </form>
+    <div id="signed-in" class="signed-in" hidden>
+      <span class="dot" aria-hidden="true"></span>
+      <span>Signed in as <b id="who"></b></span>
+      <span class="muted" id="left"></span>
+      <button type="button" class="link" id="sign-out">Sign out</button>
+    </div>
+    <p id="access-error" class="error" hidden></p>
+  </section>
+
+  <div class="layout">
+    <section class="panel queue" aria-labelledby="queue-h">
+      <div class="sec-head"><h2 id="queue-h">Ticket queue</h2></div>
+      <p class="muted small">Fictional tickets. Pick one to load it, or paste your own on the right.</p>
+      <div id="handoff-slot"></div>
+      <ul id="tickets" class="tickets"></ul>
+    </section>
+
+    <div class="col">
+      <section class="panel" aria-labelledby="input-h">
+        <div class="sec-head">
+          <h2 id="input-h">What went wrong</h2>
+          <button type="button" class="link" id="clear">Clear</button>
+        </div>
+        <div id="ticket-chip" class="chip" hidden></div>
+        <label for="input" class="visually-hidden">Error, logs, or ticket text</label>
+        <textarea id="input" rows="11" maxlength="8000" spellcheck="false" placeholder='Paste an error body, response headers, or a customer message. For example: HTTP/1.1 429 ... {"type":"error","error":{"type":"rate_limit_error", ...}}'></textarea>
+        <div class="actions">
+          <button type="button" id="explain" disabled>Explain</button>
+          <span class="muted small" id="count">0 / 8,000</span>
+          <span class="muted small">API keys in pasted text are removed before anything is sent.</span>
+        </div>
+      </section>
+
+      <section class="panel result" id="result" aria-live="polite" hidden></section>
+    </div>
+  </div>
+
+  <footer class="muted small">
+    Built by <a href="https://caseyledbetter.com">Casey Ledbetter</a> with Claude Code. Diagnoses use Claude through the API with a fixed list of doc pages it may cite.
+    <a href="https://github.com/CSLedbetter/api-error-explainer">Source</a>
+  </footer>
+</div>
+<template id="tpl-result">
+  <div class="res-head">
+    <p class="eyebrow">Diagnosis</p>
+    <h2 data-f="headline"></h2>
+    <div class="badges" data-f="badges"></div>
+  </div>
+  <div class="facts-box">
+    <h3>What the request says</h3>
+    <p class="muted small">Parsed by code, before Claude reads anything.</p>
+    <dl data-f="facts"></dl>
+  </div>
+  <div class="two">
+    <div><h3>Likely cause</h3><p data-f="cause"></p></div>
+    <div><h3>Retry?</h3><p data-f="retry"></p></div>
+  </div>
+  <div><h3>Evidence</h3><ul data-f="evidence"></ul></div>
+  <div><h3>Fix, in order</h3><ol data-f="steps"></ol></div>
+  <div data-f="questions-wrap"><h3>Still need from the customer</h3><ul data-f="questions"></ul></div>
+  <div><h3>Docs to send</h3><ul class="docs" data-f="docs"></ul></div>
+  <div class="replies">
+    <article class="reply">
+      <header><h3>Reply to the admin</h3><button type="button" class="link copy" data-copy="admin">Copy</button></header>
+      <pre data-f="admin"></pre>
+    </article>
+    <article class="reply">
+      <header><h3>Summary for an executive</h3><button type="button" class="link copy" data-copy="exec">Copy</button></header>
+      <pre data-f="exec"></pre>
+    </article>
+  </div>
+  <div class="escalate" data-f="escalate" hidden><h3>Escalate to engineering</h3><p data-f="escalation"></p></div>
+  <p class="meta muted small" data-f="meta"></p>
+</template>
+</body>
+</html>

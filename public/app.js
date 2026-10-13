@@ -83,9 +83,22 @@ function updateButton() {
   $('explain').title = auth?.approved ? '' : 'Sign in and get approved to run live calls';
 }
 $('input').addEventListener('input', () => {
-  if (state.ticket && $('input').value !== state.ticket.body) { state.ticket = null; $('ticket-chip').hidden = true; }
+  if (state.ticket && $('input').value !== state.ticket.body) state.ticket = null;
+  if (!state.ticket) { $('ticket-chip').textContent = 'Your own input'; $('ticket-chip').hidden = !$('input').value.trim(); }
   countChars();
 });
+$('use-own').addEventListener('click', () => {
+  $('clear').click();
+  $('own').open = true;
+  $('ticket-chip').textContent = 'Your own input';
+  $('ticket-chip').hidden = false;
+  $('own').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  $('input').focus();
+});
+document.querySelectorAll('.copy-cmd').forEach((b) => b.addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($(b.dataset.cmd).textContent); b.textContent = 'Copied'; } catch { b.textContent = 'Select and copy'; }
+  setTimeout(() => { b.textContent = 'Copy'; }, 1800);
+}));
 $('clear').addEventListener('click', () => {
   $('input').value = '';
   state.ticket = null;
@@ -167,7 +180,7 @@ function render(data) {
   f('admin').textContent = r.admin_reply;
   f('exec').textContent = r.exec_summary;
   if (r.escalate_to_engineering) { f('escalate').hidden = false; f('escalation').textContent = r.escalation_note; }
-  f('meta').textContent = `${data.model} · ${data.seconds} s · this run cost $${data.cost_usd.toFixed(4)}`;
+  f('meta').textContent = `Generated live just now from ${state.ticket ? `ticket ${state.ticket.id}` : 'your input'} by ${data.model} in ${data.seconds} s · Claude request ID ${data.claude_request_id || 'not returned'} · this run cost $${data.cost_usd.toFixed(4)}`;
 
   out.querySelectorAll('.copy').forEach((b) => b.addEventListener('click', async () => {
     const text = b.dataset.copy === 'admin' ? r.admin_reply : r.exec_summary;

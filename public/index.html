@@ -38,7 +38,8 @@
   <div class="layout">
     <section class="panel queue" aria-labelledby="queue-h">
       <div class="sec-head"><h2 id="queue-h">Ticket queue</h2></div>
-      <p class="muted small">Fictional tickets. Pick one to load it, or paste your own on the right.</p>
+      <button type="button" class="own-btn" id="use-own">Try your own error</button>
+      <p class="muted small">Or pick one of these fictional tickets.</p>
       <div id="handoff-slot"></div>
       <ul id="tickets" class="tickets"></ul>
     </section>
@@ -57,6 +58,28 @@
           <span class="muted small" id="count">0 / 8,000</span>
           <span class="muted small">API keys in pasted text are removed before anything is sent.</span>
         </div>
+        <details class="own" id="own">
+          <summary>Bring your own error: make a real one in 10 seconds</summary>
+          <p>Nothing here is canned. Run one of these in a terminal, paste the whole output above, and click Explain. Every answer shows Claude’s request ID so you can see it was generated just now.</p>
+          <div class="recipe">
+            <div class="recipe-head"><b>A real 401, no account needed</b><button type="button" class="link copy-cmd" data-cmd="c1">Copy</button></div>
+            <pre id="c1">curl -sS -i https://api.anthropic.com/v1/messages \
+  -H "x-api-key: sk-ant-not-a-real-key" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{"model":"claude-sonnet-5-5","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}'</pre>
+          </div>
+          <div class="recipe">
+            <div class="recipe-head"><b>A real 404 with your own key</b><button type="button" class="link copy-cmd" data-cmd="c2">Copy</button></div>
+            <pre id="c2">curl -sS -i https://api.anthropic.com/v1/messages \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{"model":"claude-sonnet-9","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}'</pre>
+            <p class="muted small">The model name is made up, so the API rejects the request before any model runs. Your key is removed from the pasted text before anything is sent.</p>
+          </div>
+          <p class="muted small">These are bash commands for macOS, Linux, or Git Bash and WSL on Windows. You can also paste an error from your own app’s logs or an SDK exception. Please don’t paste anything confidential.</p>
+        </details>
       </section>
 
       <section class="panel result" id="result" aria-live="polite" hidden></section>

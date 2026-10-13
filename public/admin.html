@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Demo Access</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous" defer></script>
+<script src="/config.js" defer></script>
+<script src="/auth.js" defer></script>
+<script src="/admin.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <p class="eyebrow">Owner only</p>
+    <h1>Demo access</h1>
+    <p class="lede">Everyone who has signed in to API Error Explainer or SSO Assistant. Approve people to let them run live calls; each approved person gets their own budget inside the shared $15.</p>
+  </header>
+  <section class="panel access" id="auth" aria-live="polite"><p class="muted small">Checking sign-in…</p></section>
+  <section class="panel" id="admin" hidden>
+    <div class="sec-head">
+      <h2>People</h2>
+      <div class="actions">
+        <span id="totals" class="muted small"></span>
+        <button type="button" class="link" id="toggle"></button>
+        <button type="button" class="link" id="reload">Refresh</button>
+      </div>
+    </div>
+    <p id="admin-error" class="error" hidden></p>
+    <div class="table-wrap"><table class="people">
+      <thead><tr><th>Person</th><th>Status</th><th>Signed in</th><th>Use</th><th>Budget</th><th></th></tr></thead>
+      <tbody id="people"></tbody>
+    </table></div>
+    <p class="muted small">To contact someone, click their email. The same list is in Supabase: <span class="mono">select * from public.demo_usage_by_user;</span></p>
+  </section>
+</div>
+</body>
+</html>

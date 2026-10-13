@@ -1,4 +1,4 @@
-import { readCode, begin, finish, checkCode, maxCost, actualCost, REASONS, PRICES } from '../lib/gate.js';
+import { getUser, begin, finish, userStatus, maxCost, actualCost, REASONS, PRICES } from '../lib/gate.js';
 import { parse, redact, DOCS } from '../lib/catalog.js';
 import { callClaude, DEFAULT_MODEL } from '../lib/claude.js';
 import { SYSTEM, SCHEMA, userMessage } from '../lib/prompt.js';
@@ -8,9 +8,6 @@ const MAX_TOKENS = 2500;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST.' });
-
-  const code = readCode(req);
-  if (!code) return res.status(401).json({ error: REASONS.invalid_code.message, reason: 'invalid_code' });
 
   const body = typeof req.body === 'object' && req.body ? req.body : {};
   const raw = typeof body.input === 'string' ? body.input.trim() : '';
@@ -26,7 +23,9 @@ export default async function handler(req, res) {
 
   let gate;
   try {
-    gate = await begin(code, reserve, ticket?.id);
+    const user = await getUser(req);
+    if (!user) return res.status(401).json({ error: REASONS.not_signed_in.message, reason: 'not_signed_in' });
+    gate = { ...(await begin(user.id, reserve, ticket?.id)), user };
   } catch (err) {
     console.error(err);
     return res.status(503).json({ error: 'The demo’s access service is unavailable right now.' });
@@ -41,7 +40,7 @@ export default async function handler(req, res) {
     const { data, usage, model: used } = await callClaude({ model, system: SYSTEM, user, schema: SCHEMA, maxTokens: MAX_TOKENS });
     const cost = actualCost(model, usage);
     await finish(gate.request_id, true, cost, usage, used).catch((e) => console.error(e));
-    const after = await checkCode(code).catch(() => null);
+    const after = await userStatus(gate.user.id).catch(() => null);
     data.docs = data.docs.map((d) => ({ ...d, title: DOCS.find((x) => x.url === d.url)?.title || d.url }));
     return res.status(200).json({
       facts, redactions, result: data, model: used,

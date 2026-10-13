@@ -1,55 +1,6 @@
 // Everything is rendered with textContent, so nothing pasted or returned can inject markup.
 const $ = (id) => document.getElementById(id);
-const KEY = 'aee-code';
-const state = { code: null, ticket: null, tickets: [], last: null };
-
-const store = {
-  get() { try { return sessionStorage.getItem(KEY); } catch { return null; } },
-  set(v) { try { v ? sessionStorage.setItem(KEY, v) : sessionStorage.removeItem(KEY); } catch { /* private mode */ } },
-};
-
-const money = (n) => (n == null ? '' : `$${Number(n).toFixed(2)}`);
-
-// ---------- access ----------
-async function unlock(code, quiet = false) {
-  $('access-error').hidden = true;
-  try {
-    const res = await fetch('/api/session', { method: 'POST', headers: { 'x-access-code': code } });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || 'That code didn’t work.');
-    state.code = code;
-    store.set(code);
-    $('who').textContent = body.label;
-    $('left').textContent = `${money(body.remaining_usd)} of budget left`;
-    $('code-form').hidden = true;
-    $('signed-in').hidden = false;
-  } catch (err) {
-    store.set(null);
-    if (!quiet) showAccessError(err.message);
-  }
-  updateButton();
-}
-
-function showAccessError(msg) {
-  $('access-error').textContent = msg;
-  $('access-error').hidden = false;
-}
-
-$('code-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const code = $('code').value.trim().toLowerCase();
-  if (!/^[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}$/.test(code)) return showAccessError('Codes look like 1a2b-3c4d-5e6f-7a8b.');
-  unlock(code);
-});
-
-$('sign-out').addEventListener('click', () => {
-  state.code = null;
-  store.set(null);
-  $('signed-in').hidden = true;
-  $('code-form').hidden = false;
-  $('code').value = '';
-  updateButton();
-});
+const state = { ticket: null, tickets: [], last: null };
 
 // ---------- tickets ----------
 function ticketButton(t, onPick) {
@@ -127,8 +78,9 @@ function countChars() {
   updateButton();
 }
 function updateButton() {
-  $('explain').disabled = !state.code || $('input').value.trim().length < 10;
-  $('explain').title = state.code ? '' : 'Enter an access code first';
+  const auth = window.DemoAuth;
+  $('explain').disabled = !auth?.approved || $('input').value.trim().length < 10;
+  $('explain').title = auth?.approved ? '' : 'Sign in and get approved to run live calls';
 }
 $('input').addEventListener('input', () => {
   if (state.ticket && $('input').value !== state.ticket.body) { state.ticket = null; $('ticket-chip').hidden = true; }
@@ -153,13 +105,13 @@ $('explain').addEventListener('click', async () => {
     const t = state.ticket;
     const res = await fetch('/api/explain', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-access-code': state.code },
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${window.DemoAuth.token()}` },
       body: JSON.stringify({ input: $('input').value, ticket: t ? { id: t.id, subject: t.subject, plan: t.plan } : null }),
     });
     const body = await res.json().catch(() => ({ error: 'The server sent back something unexpected.' }));
     if (!res.ok) throw new Error(body.error || `Request failed (${res.status}).`);
     render(body);
-    if (body.remaining_usd != null) $('left').textContent = `${money(body.remaining_usd)} of budget left`;
+    window.DemoAuth.afterCall(body.remaining_usd);
   } catch (err) {
     out.className = 'panel result';
     const p = document.createElement('p');
@@ -230,7 +182,6 @@ function render(data) {
   await loadQueue();
   const handoff = readHandoff();
   if (handoff) showHandoff(handoff);
-  const saved = store.get();
-  if (saved) unlock(saved, true);
+  window.DemoAuth?.onChange(updateButton);
   countChars();
 })();

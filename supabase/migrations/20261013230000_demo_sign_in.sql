@@ -1,6 +1,8 @@
 -- Replace access codes with Supabase Auth sign-in (Google or email) plus manual approval.
 -- New sign-ins start as 'pending'. Casey approves them on /admin. Approved users get their own
 -- $5 budget inside the shared $15 cap, enforced the same way as before (reserve, then settle).
+-- Calls are logged in a new demo_calls table; the access-code objects from the first migration
+-- are no longer used and nothing grants them to the public.
 --
 -- The admin email is set outside this file so it isn't published:
 --   update public.demo_settings set admin_email = '<email>';
@@ -8,7 +10,7 @@
 alter table public.demo_settings add column if not exists admin_email text;
 
 create table if not exists public.demo_users (
-  user_id      uuid primary key references auth.users(id) on delete cascade,
+  user_id      uuid primary key references auth.users(id),
   email        text,
   full_name    text,
   provider     text,
@@ -20,6 +22,29 @@ create table if not exists public.demo_users (
   note         text
 );
 alter table public.demo_users enable row level security;
+
+create table if not exists public.demo_calls (
+  id            bigint generated always as identity primary key,
+  user_id       uuid not null references public.demo_users(user_id),
+  tool          text not null check (tool in ('api-error-explainer', 'sso-assistant')),
+  ticket_id     text,
+  started_at    timestamptz not null default now(),
+  finished_at   timestamptz,
+  status        text not null default 'reserved' check (status in ('reserved', 'done', 'failed')),
+  reserved_usd  numeric(10,6) not null,
+  cost_usd      numeric(10,6),
+  model         text,
+  input_tokens  int,
+  output_tokens int
+);
+create index if not exists demo_calls_user_started on public.demo_calls (user_id, started_at);
+alter table public.demo_calls enable row level security;
+
+-- What a call counts against the caps: real cost once settled, the reservation until then.
+create or replace function public.demo_call_cost(c public.demo_calls)
+returns numeric language sql immutable set search_path = '' as $$
+  select coalesce(c.cost_usd, case when c.status = 'reserved' then c.reserved_usd else 0 end)
+$$;
 
 -- Every new auth user gets a pending row. The admin is approved automatically.
 create or replace function public.demo_handle_new_user()
@@ -38,15 +63,8 @@ begin
   on conflict (user_id) do nothing;
   return new;
 end $$;
-drop trigger if exists demo_on_auth_user_created on auth.users;
-create trigger demo_on_auth_user_created after insert on auth.users
+create or replace trigger demo_on_auth_user_created after insert on auth.users
   for each row execute function public.demo_handle_new_user();
-
--- Usage now belongs to users. The access-code objects from the first migration are left in place but unused
--- (nothing grants them to the public, and no code rows exist).
-alter table public.demo_usage add column if not exists user_id uuid references public.demo_users(user_id) on delete cascade;
-alter table public.demo_usage alter column code_id drop not null;
-create index if not exists demo_usage_user_started on public.demo_usage (user_id, started_at);
 
 -- Status for the signed-in visitor (called by the server with an id it verified from the token).
 create or replace function public.demo_user_status(p_user_id uuid)
@@ -56,8 +74,8 @@ begin
   select * into s from public.demo_settings where id = 1;
   update public.demo_users set last_seen_at = now() where user_id = p_user_id returning * into u;
   if not found then return jsonb_build_object('status', 'unknown'); end if;
-  select coalesce(sum(public.demo_row_cost(x)), 0) into spent_user from public.demo_usage x where x.user_id = u.user_id;
-  select coalesce(sum(public.demo_row_cost(x)), 0) into spent_all from public.demo_usage x;
+  select coalesce(sum(public.demo_call_cost(c)), 0) into spent_user from public.demo_calls c where c.user_id = u.user_id;
+  select coalesce(sum(public.demo_call_cost(c)), 0) into spent_all from public.demo_calls c;
   return jsonb_build_object(
     'status', case when not s.enabled and u.status = 'approved' then 'disabled' else u.status end,
     'email', u.email, 'name', u.full_name,
@@ -76,31 +94,43 @@ begin
   if not found then return jsonb_build_object('ok', false, 'reason', 'not_signed_in'); end if;
   if u.status = 'pending' then return jsonb_build_object('ok', false, 'reason', 'pending'); end if;
   if u.status <> 'approved' then return jsonb_build_object('ok', false, 'reason', 'revoked'); end if;
-  select count(*) into recent from public.demo_usage x where x.user_id = u.user_id and x.started_at > now() - interval '1 hour';
+  select count(*) into recent from public.demo_calls c where c.user_id = u.user_id and c.started_at > now() - interval '1 hour';
   if recent >= s.hourly_limit then return jsonb_build_object('ok', false, 'reason', 'rate_limited'); end if;
-  select coalesce(sum(public.demo_row_cost(x)), 0) into spent_user from public.demo_usage x where x.user_id = u.user_id;
+  select coalesce(sum(public.demo_call_cost(c)), 0) into spent_user from public.demo_calls c where c.user_id = u.user_id;
   if spent_user + p_max_cost_usd > u.cap_usd then return jsonb_build_object('ok', false, 'reason', 'user_cap'); end if;
-  select coalesce(sum(public.demo_row_cost(x)), 0) into spent_all from public.demo_usage x;
+  select coalesce(sum(public.demo_call_cost(c)), 0) into spent_all from public.demo_calls c;
   if spent_all + p_max_cost_usd > s.global_cap_usd then return jsonb_build_object('ok', false, 'reason', 'global_cap'); end if;
-  insert into public.demo_usage (user_id, tool, ticket_id, reserved_usd)
+  insert into public.demo_calls (user_id, tool, ticket_id, reserved_usd)
   values (u.user_id, p_tool, left(p_ticket_id, 40), p_max_cost_usd) returning id into new_id;
   return jsonb_build_object('ok', true, 'request_id', new_id);
 end $$;
+
+-- Settle a call to its real cost (0 if Claude was never reached).
+create or replace function public.demo_finish_call(p_request_id bigint, p_ok boolean, p_cost_usd numeric,
+                                                   p_model text default null, p_input_tokens int default null, p_output_tokens int default null)
+returns void language sql security definer set search_path = '' as $$
+  update public.demo_calls
+     set status = case when p_ok then 'done' else 'failed' end,
+         cost_usd = greatest(0, coalesce(p_cost_usd, 0)),
+         finished_at = now(), model = p_model,
+         input_tokens = p_input_tokens, output_tokens = p_output_tokens
+   where id = p_request_id and status = 'reserved'
+$$;
 
 -- Admin: everyone who has signed in, with usage. The server only calls this for the admin.
 create or replace function public.demo_admin_list()
 returns jsonb language sql security definer set search_path = '' as $$
   select jsonb_build_object(
     'settings', (select jsonb_build_object('global_cap_usd', global_cap_usd, 'enabled', enabled, 'hourly_limit', hourly_limit) from public.demo_settings where id = 1),
-    'spent_total_usd', (select round(coalesce(sum(public.demo_row_cost(x)), 0), 4) from public.demo_usage x),
+    'spent_total_usd', (select round(coalesce(sum(public.demo_call_cost(c)), 0), 4) from public.demo_calls c),
     'users', coalesce((select jsonb_agg(row_to_json(r) order by r.status = 'pending' desc, r.requested_at desc) from (
       select u.user_id, u.email, u.full_name, u.provider, u.status, u.cap_usd, u.requested_at, u.decided_at, u.last_seen_at,
-             count(x.id) as requests,
-             count(x.id) filter (where x.tool = 'api-error-explainer') as explainer_requests,
-             count(x.id) filter (where x.tool = 'sso-assistant') as sso_requests,
-             round(coalesce(sum(public.demo_row_cost(x)), 0), 4) as spent_usd,
-             max(x.started_at) as last_used
-        from public.demo_users u left join public.demo_usage x on x.user_id = u.user_id
+             count(c.id) as requests,
+             count(c.id) filter (where c.tool = 'api-error-explainer') as explainer_requests,
+             count(c.id) filter (where c.tool = 'sso-assistant') as sso_requests,
+             round(coalesce(sum(public.demo_call_cost(c)), 0), 4) as spent_usd,
+             max(c.started_at) as last_used
+        from public.demo_users u left join public.demo_calls c on c.user_id = u.user_id
        group by u.user_id) r), '[]'::jsonb))
 $$;
 
@@ -121,13 +151,15 @@ $$;
 
 -- Who has used what. In the SQL editor: select * from public.demo_usage_by_user;
 create or replace view public.demo_usage_by_user with (security_invoker = true) as
-select u.email, u.full_name, u.status, count(x.id) as requests,
-       round(coalesce(sum(public.demo_row_cost(x)), 0), 4) as spent_usd, u.cap_usd, max(x.started_at) as last_used
-  from public.demo_users u left join public.demo_usage x on x.user_id = u.user_id
+select u.email, u.full_name, u.status, count(c.id) as requests,
+       round(coalesce(sum(public.demo_call_cost(c)), 0), 4) as spent_usd, u.cap_usd, max(c.started_at) as last_used
+  from public.demo_users u left join public.demo_calls c on c.user_id = u.user_id
  group by u.user_id;
 
-revoke all on public.demo_users, public.demo_usage_by_user from anon, authenticated;
-revoke execute on function public.demo_handle_new_user(), public.demo_user_status(uuid), public.demo_begin_user(uuid, text, numeric, text),
+revoke all on public.demo_users, public.demo_calls, public.demo_usage_by_user from anon, authenticated;
+revoke execute on function public.demo_call_cost(public.demo_calls), public.demo_handle_new_user(), public.demo_user_status(uuid),
+  public.demo_begin_user(uuid, text, numeric, text), public.demo_finish_call(bigint, boolean, numeric, text, int, int),
   public.demo_admin_list(), public.demo_admin_set(uuid, text, numeric), public.demo_admin_toggle(boolean) from public, anon, authenticated;
 grant execute on function public.demo_user_status(uuid), public.demo_begin_user(uuid, text, numeric, text),
+  public.demo_finish_call(bigint, boolean, numeric, text, int, int),
   public.demo_admin_list(), public.demo_admin_set(uuid, text, numeric), public.demo_admin_toggle(boolean) to service_role;

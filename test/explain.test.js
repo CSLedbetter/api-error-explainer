@@ -24,7 +24,7 @@ beforeEach(() => {
     calls.push({ url, body, headers: opts.headers });
     if (url.endsWith('/auth/v1/user')) return opts.headers.Authorization === 'Bearer good-token-1234567890' ? json({ id: USER, email: 'Tester@Example.com' }) : json({ msg: 'invalid' }, 401);
     if (url.endsWith('/rpc/demo_begin_user')) return json(gateReply);
-    if (url.endsWith('/rpc/demo_finish')) return json(null);
+    if (url.endsWith('/rpc/demo_finish_call')) return json(null);
     if (url.endsWith('/rpc/demo_user_status')) return json({ status: 'approved', remaining_usd: 4.98 });
     if (url.includes('api.anthropic.com')) return json(claudeReply.body, claudeReply.status);
     throw new Error(`unexpected ${url}`);
@@ -40,7 +40,7 @@ function run(body, token = 'good-token-1234567890') {
     handler({ method: 'POST', headers: token ? { authorization: `Bearer ${token}` } : {}, body }, res);
   });
 }
-const finishCall = () => calls.find((c) => c.url.endsWith('/rpc/demo_finish'))?.body;
+const finishCall = () => calls.find((c) => c.url.endsWith('/rpc/demo_finish_call'))?.body;
 
 test('rejects a visitor who is not signed in, without reserving or calling Claude', async () => {
   for (const token of [null, 'forged-token-0000000000']) {

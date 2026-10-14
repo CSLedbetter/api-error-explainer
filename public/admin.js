@@ -45,7 +45,7 @@ function row(u) {
   seen.append(el('span', { textContent: `First: ${when(u.requested_at)}` }), el('br'), el('span', { className: 'muted', textContent: `Last: ${when(u.last_seen_at)}` }));
   const use = el('td', { className: 'small' });
   use.append(el('span', { textContent: `${u.requests} calls` }), el('br'),
-    el('span', { className: 'muted', textContent: `${u.explainer_requests} API · ${u.sso_requests} SSO` }));
+    el('span', { className: 'muted', textContent: `${u.explainer_requests} API · ${u.sso_requests} SSO · ${u.vendor_requests ?? 0} vendor` }));
   const budget = el('td', { className: 'small' });
   const cap = el('select');
   cap.setAttribute('aria-label', `Budget for ${u.email}`);
